@@ -1,4 +1,5 @@
 # c-world-encode
+# version=0.9
 h5 helper scripts for encode/dekkerlab hi-c data
 
 docs/
