@@ -1,8 +1,22 @@
 # c-world-encode
 
-<img src="http://my5C.umassmed.edu/images/3DG.png">
-<img src="http://my5C.umassmed.edu/images/dekkerlabbioinformatics.gif">
-<img src="http://my5C.umassmed.edu/images/umasslogo.gif">
+<table>
+	<tr>
+		<td width="2.5%">&nbsp;</td>
+		<td width="60%" align='left' nowrap>
+			<img height=40 src='http://my5C.umassmed.edu/images/3DG.png' title='3D-Genome'"></img>
+			<img height=30 src='http://my5C.umassmed.edu/images/dekkerlabbioinformatics.gif' title='Dekker Lab Bioinformatics'"></img>
+			<?php if($beta == 1) { ?>
+				<img class='first' src='/images/beta-small.png' height=32></img>
+			<?php } ?>
+		</td>
+		<td width="25%" align='right' nowrap>				
+			<img height=32 class='first' src='http://my5C.umassmed.edu/images/umasslogo.gif' title='University of Massachusetts Medical School' style="cursor: pointer" onclick="window.open('http://umassmed.edu')"></img>
+			<img height=32 src="/images/twitter.png" title="Follow my5C on Twitter" style="cursor: pointer" onclick="window.open('http://www.twitter.com/my5C')" />
+		</td>
+		<td width="2.5%">&nbsp;</td>
+	</tr>
+</table>
 
 <br>
 
