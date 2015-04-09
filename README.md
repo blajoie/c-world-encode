@@ -2,16 +2,10 @@
 
 <table border=0>
 	<tr>
-		<td width='2.5%'>&nbsp;</td>
-		<td width='60%' align='left' nowrap>
+		<td>
 			<img height=40 src='http://my5C.umassmed.edu/images/3DG.png' title='3D-Genome' />
 			<img height=30 src='http://my5C.umassmed.edu/images/dekkerlabbioinformatics.gif' />
 		</td>
-		<td width='25%' align='right' nowrap>				
-			<img height=32 class='first' src='http://my5C.umassmed.edu/images/umasslogo.gif' />
-			<img height=32 src='/images/twitter.png' />
-		</td>
-		<td width='2.5%'>&nbsp;</td>
 	</tr>
 </table>
 
