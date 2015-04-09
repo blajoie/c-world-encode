@@ -1,5 +1,12 @@
 # c-world-encode
 # version=0.9
+
+<img src="http://my5C.umassmed.edu/images/umasslogo.gif">
+<img src="http://my5C.umassmed.edu/images/dekkerlabbioinformatics.gif">
+<img src="http://my5C.umassmed.edu/images/3DG.png">
+
+# c-world-encode
+
 h5 helper scripts for encode/dekkerlab hi-c data
 
 docs/
