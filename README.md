@@ -1,20 +1,17 @@
 # c-world-encode
 
-<table>
+<table border=0>
 	<tr>
-		<td width="2.5%">&nbsp;</td>
-		<td width="60%" align='left' nowrap>
-			<img height=40 src='http://my5C.umassmed.edu/images/3DG.png' title='3D-Genome'"></img>
-			<img height=30 src='http://my5C.umassmed.edu/images/dekkerlabbioinformatics.gif' title='Dekker Lab Bioinformatics'"></img>
-			<?php if($beta == 1) { ?>
-				<img class='first' src='/images/beta-small.png' height=32></img>
-			<?php } ?>
+		<td width='2.5%'>&nbsp;</td>
+		<td width='60%' align='left' nowrap>
+			<img height=40 src='http://my5C.umassmed.edu/images/3DG.png' title='3D-Genome' />
+			<img height=30 src='http://my5C.umassmed.edu/images/dekkerlabbioinformatics.gif' />
 		</td>
-		<td width="25%" align='right' nowrap>				
-			<img height=32 class='first' src='http://my5C.umassmed.edu/images/umasslogo.gif' title='University of Massachusetts Medical School' style="cursor: pointer" onclick="window.open('http://umassmed.edu')"></img>
-			<img height=32 src="/images/twitter.png" title="Follow my5C on Twitter" style="cursor: pointer" onclick="window.open('http://www.twitter.com/my5C')" />
+		<td width='25%' align='right' nowrap>				
+			<img height=32 class='first' src='http://my5C.umassmed.edu/images/umasslogo.gif' />
+			<img height=32 src='/images/twitter.png' />
 		</td>
-		<td width="2.5%">&nbsp;</td>
+		<td width='2.5%'>&nbsp;</td>
 	</tr>
 </table>
 
@@ -96,14 +93,14 @@ For bugs, questions and discussions please use the [Github Issues](https://githu
 
 ## LICENSE
 
-Licensed under the Apache License, Version 2.0 (the "License");
+Licensed under the Apache License, Version 2.0 (the 'License');
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
 <http://www.apache.org/licenses/LICENSE-2.0>
 
 Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
+distributed under the License is distributed on an 'AS IS' BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
