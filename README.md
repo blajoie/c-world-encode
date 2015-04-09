@@ -1,15 +1,6 @@
 # c-world-encode
 
-<table border=0>
-	<tr>
-		<td>
-			<img height=40 src='http://my5C.umassmed.edu/images/3DG.png' title='3D-Genome' />
-			<img height=30 src='http://my5C.umassmed.edu/images/dekkerlabbioinformatics.gif' />
-		</td>
-	</tr>
-</table>
-
-<br>
+<table border=0><tr><td><img height=40 src='http://my5C.umassmed.edu/images/3DG.png' title='3D-Genome' /><img height=30 src='http://my5C.umassmed.edu/images/dekkerlabbioinformatics.gif' /></td></tr></table>
 
 # c-world-encode
 
