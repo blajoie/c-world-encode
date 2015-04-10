@@ -22,7 +22,7 @@ See the [c-world-encode Wiki](https://github.com/blajoie/c-world-encode/wiki) fo
 
 See the [HDF5 spec Wiki](https://github.com/blajoie/c-world-encode/wiki/H5-Spec) for focumentation of the dekkerlab Hi-C HDF5 file format. (h5 dataset/attributes)
 
-Download/Clone the[hdf2tab.py](https://github.com/blajoie/c-world-encode) HDF5 helper script (python) here.
+Download/Clone the [hdf2tab.py](https://github.com/blajoie/c-world-encode) HDF5 helper script (python).
 <br>
 numpy/scipy/h5py required. Python 2.7+
 
