@@ -17,17 +17,16 @@ c-world-encode/
 
 ## Full Documentation
 
-See the Wiki for full documentation of encode/dekkerlab Hi-C HDF5 file format.
+See the [c-world-encode Wiki](https://github.com/blajoie/c-world-encode/wiki) for full documentation of encode/dekkerlab Hi-C HDF5 file format.
 <br>
-[c-world-encode wiki](https://github.com/blajoie/c-world-encode/wiki)
 
-[HDF5 spec](https://github.com/blajoie/c-world-encode/wiki/H5-Spec) for dekkerlab Hi-C data. (h5 dataset/attributes)
+See the [HDF5 spec Wiki](https://github.com/blajoie/c-world-encode/wiki/H5-Spec) for focumentation of the dekkerlab Hi-C HDF5 file format. (h5 dataset/attributes)
 
-[HDF5 helper script (python), hdf2tab.py](https://github.com/blajoie/c-world-encode)
+Download/Clone the[hdf2tab.py](https://github.com/blajoie/c-world-encode) HDF5 helper script (python) here.
 <br>
 numpy/scipy/h5py required. Python 2.7+
 
-Sample [hdf2tab.py](https://github.com/blajoie/c-world-encode#usage</a>) usage to read/convert hdf5 -> tsv.
+See the [Usage Wiki](https://github.com/blajoie/c-world-encode#usage</a>) for help running the hdf2tab.py scripy.
 
 Hi-C data is pushed through the dekkerlab standard pipeline (to be available on GIT soon) and binned at multiple bin sizes (resolutions):
 - 10mb
