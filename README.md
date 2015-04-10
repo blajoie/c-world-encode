@@ -31,7 +31,7 @@ See the [Wiki](https://github.com/blajoie/c-world-encode/wiki) for full document
 
 ## What does it do?
 
-hdf2tab can read/subset a hdf5 file containing Hi-C data from the encode/dekkerlab and conert it into my5C fomatted tsv matrix files.
+hdf2tab can read/subset a hdf5 file containing Hi-C data from the encode/dekkerlab and convert it into a my5C fomatted tsv matrix file.
 
 ## Usage
 
