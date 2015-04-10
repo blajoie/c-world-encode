@@ -17,6 +17,10 @@ c-world-encode/
 
 ## Full Documentation
 
+See the [Wiki](https://github.com/blajoie/c-world-encode/wiki) for full documentation of encode/dekkerlab Hi-C HDF5 file format.
+	Datasets
+	Attributes
+	
 See the [Wiki](https://github.com/blajoie/c-world-encode/wiki) for full documentation, examples, operational details and other information.
 
 ## Communication
@@ -27,7 +31,7 @@ See the [Wiki](https://github.com/blajoie/c-world-encode/wiki) for full document
 
 ## What does it do?
 
-hdf2tab can read/subset a hdf5 file containing Hi-C data from the encode/dekkerlab.
+hdf2tab can read/subset a hdf5 file containing Hi-C data from the encode/dekkerlab and conert it into my5C fomatted tsv matrix files.
 
 ## Usage
 
