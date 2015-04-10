@@ -17,10 +17,26 @@ c-world-encode/
 
 ## Full Documentation
 
-See the [Wiki](https://github.com/blajoie/c-world-encode/wiki) for full documentation of encode/dekkerlab Hi-C HDF5 file format.
-	Datasets
-	Attributes
-	
+See the [c-world-encode Wiki](https://github.com/blajoie/c-world-encode/wiki) for full documentation of encode/dekkerlab Hi-C HDF5 file format.
+<br>
+
+See the [HDF5 spec Wiki](https://github.com/blajoie/c-world-encode/wiki/H5-Spec) for focumentation of the dekkerlab Hi-C HDF5 file format. (h5 dataset/attributes)
+
+Download/Clone the [hdf2tab.py](https://github.com/blajoie/c-world-encode) HDF5 helper script (python).
+<br>
+numpy/scipy/h5py required. Python 2.7+
+
+See the [Usage Wiki](https://github.com/blajoie/c-world-encode#usage</a>) for help running the hdf2tab.py scripy.
+
+Hi-C data is pushed through the dekkerlab standard pipeline (to be available on GIT soon) and binned at multiple bin sizes (resolutions):
+- 10mb
+- 2.5mb
+- 1mb
+- 500kb
+- 250kb
+- 100kb
+- 40kb
+
 See the [Wiki](https://github.com/blajoie/c-world-encode/wiki) for full documentation, examples, operational details and other information.
 
 ## Communication
@@ -31,7 +47,7 @@ See the [Wiki](https://github.com/blajoie/c-world-encode/wiki) for full document
 
 ## What does it do?
 
-hdf2tab can read/subset a hdf5 file containing Hi-C data from the encode/dekkerlab and conert it into my5C fomatted tsv matrix files.
+hdf2tab can read/subset a hdf5 file containing Hi-C data from the encode/dekkerlab and convert it into a my5C fomatted tsv matrix file.
 
 ## Usage
 
