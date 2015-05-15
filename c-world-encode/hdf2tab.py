@@ -22,10 +22,12 @@ def main():
 
     parser.add_argument('-i', '--input', dest='infile', type=str, required=True, help='interaction matrix hdf5 file')
     parser.add_argument('-info', dest='info', action='store_true', help='interaction matrix hdf5 file')
+    parser.add_argument('-or','--output_relative', dest='output_relative', action='store_true', help='output file relative to input file path')
     parser.add_argument('-v', '--verbose', dest='verbose',  action='count', help='Increase verbosity (specify multiple times for more)')
     parser.add_argument('-o', '--output', dest='outfile', type=str, help='interaction matrix output file')
     parser.add_argument('-cis', dest='cis_mode', action='store_true', help='extract cis maps only')
     parser.add_argument('-chrs', dest='selected_chrs', nargs='+', type=str, default='*', help='subset of chromosomes to extract')
+    parser.add_argument('-maxdim', dest='max_dimension', type=int, default=300000, help='maximum dimension of allxall matrix - else cis only')
     parser.add_argument('-z', '--zoom', dest='zoom_coords', nargs='+', type=str, help='zoom coordinate (can only select symmetrical subsets)')
     parser.add_argument('-m','--bmem', dest='blockmem', type=int, help='block size for extracting (default=hdf chunk size)')
     parser.add_argument('-p', dest='precision', type=int, default=4, help='output precision (# of digits)')
@@ -39,10 +41,12 @@ def main():
 
     infile=args.infile
     info=args.info
+    output_relative=args.output_relative
     verbose=args.verbose
     outfile=args.outfile
     cis_mode=args.cis_mode
     selected_chrs=args.selected_chrs
+    max_dimension=args.max_dimension
     zoom_coords=args.zoom_coords
     blockmem=args.blockmem
     precision=args.precision
@@ -63,6 +67,8 @@ def main():
     verboseprint("\n",end="")
     
     infile_name=os.path.basename(infile)
+    if output_relative:
+       infile_name=infile
     inhdf=h5py.File(infile,'r')
     
     # attrs
@@ -118,8 +124,8 @@ def main():
         quit()
     
     # warn user that (txt) matrix > 300,000 row/col is _excessive_
-    if(n>300000):
-        logging.warning("matrix is > 300000 [",n,"].\n\tenforcing cis only mode!\n")
+    if(n>max_dimension):
+        logging.warning("large matrix! %d > %d.\n\tenforcing cis only mode!\n" % (n,max_dimension))
         cis_mode=1
     
     if(outfile==None):
@@ -194,6 +200,11 @@ def main():
                 
             # interaction matrix output
             n2=np.sum(bin_mask)
+            
+            if n2 > max_dimension:
+                logging.warning("sub-matrix too large! [%s] %d > %d.\n" % (c,n,max_dimension))
+                continue
+                
             if not verbose: print(c," - writing (",n2,"x",n2,") matrix",sep="")
             m_out_fh=gzip.open(outfile+'__'+c+'.matrix.gz',"wb")
 
@@ -282,76 +293,83 @@ def main():
         
         # interaction matrix output
         n2=np.sum(bin_mask)
-        if not verbose: print("all - writing (",n2,"x",n2,") matrix",sep="")
-        m_out_fh=gzip.open(outfile+'.matrix.gz',"wb")
         
-        # create header list
-        header=list()
-        for c in selected_chrs:
-            tmp_bin_mask=np.zeros(n,dtype=bool)
-            r=chr_bin_range[chr_dict[c]]
-            tmp_chr_bin_mask=bin_mask[r[0]:r[1]+1]
-            tmp_bin_mask[r[0]:r[1]+1]=tmp_chr_bin_mask
-            tmp_header=[str(i)+'|'+genome+'|'+str(chrs[bin_positions[i,0]])+':'+str(bin_positions[i,1])+'-'+str(bin_positions[i,2]) for i in np.nonzero(tmp_bin_mask)[0]]
-            header += tmp_header
+        if n2 > max_dimension:
             
-        print(str(n2)+"x"+str(n2)+"\t"+"\t".join(header),file=m_out_fh)
-      
-        k=0
-        for c in selected_chrs:
-            r=chr_bin_range[chr_dict[c]]
-            tmp_chr_bin_mask=bin_mask[r[0]:r[1]+1]
-            c_end=max(np.nonzero(tmp_chr_bin_mask))[-1]
-            c_start=max(np.nonzero(tmp_chr_bin_mask))[0]
-            tmp_chr_bin_mask=tmp_chr_bin_mask[c_start:c_end+1]
-            c_start += r[0]
-            c_end += r[0]
+            logging.warning("matrix too large! %d > %d.\n" % (n,max_dimension))
+            
+        else:
+            
+            if not verbose: print("all - writing (",n2,"x",n2,") matrix",sep="")
+            m_out_fh=gzip.open(outfile+'.matrix.gz',"wb")
+            
+            # create header list
+            header=list()
+            for c in selected_chrs:
+                tmp_bin_mask=np.zeros(n,dtype=bool)
+                r=chr_bin_range[chr_dict[c]]
+                tmp_chr_bin_mask=bin_mask[r[0]:r[1]+1]
+                tmp_bin_mask[r[0]:r[1]+1]=tmp_chr_bin_mask
+                tmp_header=[str(i)+'|'+genome+'|'+str(chrs[bin_positions[i,0]])+':'+str(bin_positions[i,1])+'-'+str(bin_positions[i,2]) for i in np.nonzero(tmp_bin_mask)[0]]
+                header += tmp_header
+                
+            print(str(n2)+"x"+str(n2)+"\t"+"\t".join(header),file=m_out_fh)
+          
+            k=0
+            for c in selected_chrs:
+                r=chr_bin_range[chr_dict[c]]
+                tmp_chr_bin_mask=bin_mask[r[0]:r[1]+1]
+                c_end=max(np.nonzero(tmp_chr_bin_mask))[-1]
+                c_start=max(np.nonzero(tmp_chr_bin_mask))[0]
+                tmp_chr_bin_mask=tmp_chr_bin_mask[c_start:c_end+1]
+                c_start += r[0]
+                c_end += r[0]
 
-            for i in xrange(c_start,c_end+1,blocksize):
-                b=min(c_end+1-i,blocksize)
-                tmp_bin_mask=tmp_chr_bin_mask[i-c_start:i-c_start+b]
-                    
-                verboseprint("\r",""*20,"\r\tloading block (",i,":",i+b,") ... ",sep="",end="\r")
-                if verbose: sys.stdout.flush()
-                
-                current_block=inhdf['interactions'][i:i+b,:][:,bin_mask][tmp_bin_mask,:]
-                
-                for j in xrange(current_block.shape[0]):
-                    print(header[k]+"\t"+"\t".join(map(format_func,current_block[j,:])),file=m_out_fh)
-                    m_out_fh.flush()
-                    
-                    pc=((float(k)/float((n2)))*100)
-                    verboseprint("\r\t"+str(k)+" / "+str(n2)+" ["+str("{0:.2f}".format(pc))+"%] complete ... ",end="\r")
+                for i in xrange(c_start,c_end+1,blocksize):
+                    b=min(c_end+1-i,blocksize)
+                    tmp_bin_mask=tmp_chr_bin_mask[i-c_start:i-c_start+b]
+                        
+                    verboseprint("\r",""*20,"\r\tloading block (",i,":",i+b,") ... ",sep="",end="\r")
                     if verbose: sys.stdout.flush()
                     
-                    k+=1
+                    current_block=inhdf['interactions'][i:i+b,:][:,bin_mask][tmp_bin_mask,:]
+                    
+                    for j in xrange(current_block.shape[0]):
+                        print(header[k]+"\t"+"\t".join(map(format_func,current_block[j,:])),file=m_out_fh)
+                        m_out_fh.flush()
+                        
+                        pc=((float(k)/float((n2)))*100)
+                        verboseprint("\r\t"+str(k)+" / "+str(n2)+" ["+str("{0:.2f}".format(pc))+"%] complete ... ",end="\r")
+                        if verbose: sys.stdout.flush()
+                        
+                        k+=1
+                
+            m_out_fh.close()
             
-        m_out_fh.close()
-        
-        verboseprint('\r',end="")
-        pc=((float(n2)/float((n2)))*100)
-        verboseprint("\t"+str(n2)+" / "+str(n2)+" ["+str("{0:.2f}".format(pc))+"%] complete",end="")
-        if verbose: sys.stdout.flush()
-        
-        verboseprint("")
-        
-        if (chrlistfile!=None):
-            verboseprint("writing chr list file")
-            c_out_fh=open(chrlistfile+'.cl',"w")
-            for c in selected_chrs:
-                print(c,file=c_out_fh)
-            c_out_fh.close()
-            verboseprint("\tdone\n")
+            verboseprint('\r',end="")
+            pc=((float(n2)/float((n2)))*100)
+            verboseprint("\t"+str(n2)+" / "+str(n2)+" ["+str("{0:.2f}".format(pc))+"%] complete",end="")
+            if verbose: sys.stdout.flush()
+            
+            verboseprint("")
+            
+            if (chrlistfile!=None):
+                verboseprint("writing chr list file")
+                c_out_fh=open(chrlistfile+'.cl',"w")
+                for c in selected_chrs:
+                    print(c,file=c_out_fh)
+                c_out_fh.close()
+                verboseprint("\tdone\n")
 
-        if (binlistfile!=None):
-            verboseprint("writing bin list file")
-            b_out_fh=open(binlistfile+'.bp',"w")
-            for i in np.nonzero(bin_mask)[0]:
-                print(str(i)+"\t"+chrs[bin_positions[i,0]]+"\t"+str(bin_positions[i,1])+"\t"+str(bin_positions[i,2]),file=b_out_fh)
-            b_out_fh.close()
-            verboseprint("\tdone\n")
-            
-        verboseprint("")
+            if (binlistfile!=None):
+                verboseprint("writing bin list file")
+                b_out_fh=open(binlistfile+'.bp',"w")
+                for i in np.nonzero(bin_mask)[0]:
+                    print(str(i)+"\t"+chrs[bin_positions[i,0]]+"\t"+str(bin_positions[i,1])+"\t"+str(bin_positions[i,2]),file=b_out_fh)
+                b_out_fh.close()
+                verboseprint("\tdone\n")
+                
+            verboseprint("")
 
 def split_zoom_coord(z):
     """validate and split zoom coordinate.
