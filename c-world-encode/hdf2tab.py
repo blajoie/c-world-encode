@@ -21,18 +21,19 @@ def main():
     parser=argparse.ArgumentParser(description='Extract c-data from HDF5 file into TXT (matrix.gz)',formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('-i', '--input', dest='infile', type=str, required=True, help='interaction matrix hdf5 file')
-    parser.add_argument('-info', dest='info', action='store_true', help='interaction matrix hdf5 file')
+    parser.add_argument('-info', '--info',dest='info', action='store_true', help='interaction matrix hdf5 file')
     parser.add_argument('-or','--output_relative', dest='output_relative', action='store_true', help='output file relative to input file path')
     parser.add_argument('-v', '--verbose', dest='verbose',  action='count', help='Increase verbosity (specify multiple times for more)')
     parser.add_argument('-o', '--output', dest='outfile', type=str, help='interaction matrix output file')
     parser.add_argument('-cis', dest='cis_mode', action='store_true', help='extract cis maps only')
     parser.add_argument('-chrs', dest='selected_chrs', nargs='+', type=str, default='*', help='subset of chromosomes to extract')
-    parser.add_argument('-maxdim', dest='max_dimension', type=int, default=300000, help='maximum dimension of allxall matrix - else cis only')
+    parser.add_argument('-maxdim', '--maxdim',dest='max_dimension', type=int, default=300000, help='maximum dimension of allxall matrix - else cis only')
     parser.add_argument('-z', '--zoom', dest='zoom_coords', nargs='+', type=str, help='zoom coordinate (can only select symmetrical subsets)')
     parser.add_argument('-m','--bmem', dest='blockmem', type=int, help='block size for extracting (default=hdf chunk size)')
     parser.add_argument('-p', dest='precision', type=int, default=4, help='output precision (# of digits)')
-    parser.add_argument('-cl', '--chrlist', dest='chrlistfile', type=str, help='chromosome list output file')
-    parser.add_argument('-bl', '--binlist', dest='binlistfile', type=str, help='bin position output file')
+    parser.add_argument('-cl', '--chrlist', dest='chrlistfile', type=str, help='output the chromosome list file')
+    parser.add_argument('-bl', '--binlist', dest='binlistfile', type=str, help='output the bin position file')
+    parser.add_argument('-of', '--outputfactors', dest='output_factors', action='store_true', help='output the balancing factor list file')
     
     #parser.print_help()
     #usage = "usage: %prog [options] arg1 arg2"
@@ -52,6 +53,7 @@ def main():
     precision=args.precision
     chrlistfile=args.chrlistfile
     binlistfile=args.binlistfile
+    output_factors=args.output_factors
     
     log_level = logging.WARNING
     if verbose == 1:
@@ -77,6 +79,7 @@ def main():
     bin_positions=inhdf['bin_positions'][:]
     chr_bin_range=inhdf['chr_bin_range'][:]
     chrs=inhdf['chrs'][:]
+
     # matrix shape
     nrow=inhdf['interactions'].shape[0]
     ncol=inhdf['interactions'].shape[1]
@@ -98,6 +101,11 @@ def main():
         sys.exit('error: non-symmetrical matrix found!')
     n=nrow=ncol
     
+    # get factors 
+    factors=np.ones(n,dtype='float64')
+    if "balance_factors" in inhdf.keys():
+        factors=inhdf['balance_factors'][:]
+        
     # build chr lookup dict
     chr_dict={}
     for i,c in enumerate(chrs):
@@ -111,6 +119,7 @@ def main():
         verboseprint("assembly",genome,sep="\t")
         verboseprint("h5 chunk",inhdf['interactions'].chunks[0],sep="\t")
         verboseprint("user chunk",blocksize,sep="\t")
+        verboseprint("factors",factors,sep="\t")
         
         verboseprint("\nchrs",sep="\t")
         for i,c in enumerate(chrs):
@@ -181,18 +190,21 @@ def main():
             
             # reset bin_mask to all zeros
             bin_mask=np.zeros(n,dtype=bool)
-            if c in zoom_dict:
-                zoom_coord_arr=zoom_dict[c]
-                for zoom_coord in zoom_coord_arr:
-                    tmp_bin_positions=bin_positions[r[0]:r[1]+1]
-                    for i,b in enumerate(tmp_bin_positions):
-                        if b[2] < zoom_coord[1]: continue
-                        if b[1] > zoom_coord[2]: break
-                        overlap=is_overlap([zoom_coord[1],zoom_coord[2]], [b[1],b[2]])
-                        if(overlap > 0):
-                            bin_mask[r[0]+i]=True
-                    n2=np.sum(bin_mask[r[0]:r[1]+1])
-                    verboseprint("\t",c," zoom subset ",n2,"x",n2,sep="")
+            if(len(zoom_dict) > 0):
+                if c in zoom_dict:
+                    zoom_coord_arr=zoom_dict[c]
+                    for zoom_coord in zoom_coord_arr:
+                        tmp_bin_positions=bin_positions[r[0]:r[1]+1]
+                        for i,b in enumerate(tmp_bin_positions):
+                            if b[2] < zoom_coord[1]: continue
+                            if b[1] > zoom_coord[2]: break
+                            overlap=is_overlap([zoom_coord[1],zoom_coord[2]], [b[1],b[2]])
+                            if(overlap > 0):
+                                bin_mask[r[0]+i]=True
+                        n2=np.sum(bin_mask[r[0]:r[1]+1])
+                        verboseprint("\t",c," zoom subset ",n2,"x",n2,sep="")
+                else:
+                    continue
             else:
                 bin_mask[r[0]:r[1]+1]=True
                 n2=np.sum(bin_mask[r[0]:r[1]+1])
@@ -201,8 +213,8 @@ def main():
             # interaction matrix output
             n2=np.sum(bin_mask)
             
-            if n2 > max_dimension:
-                logging.warning("sub-matrix too large! [%s] %d > %d.\n" % (c,n,max_dimension))
+            if n2 > (max_dimension*2):
+                logging.warning("sub-matrix too large! [%s] %d > %d.\n" % (c,n2,(max_dimension*2)))
                 continue
                 
             if not verbose: print(c," - writing (",n2,"x",n2,") matrix",sep="")
@@ -248,20 +260,22 @@ def main():
             verboseprint("")
             
             if (chrlistfile!=None):
-                verboseprint("writing chr list file")
                 c_out_fh=open(chrlistfile+'__'+c+'.cl',"w")
                 for c in selected_chrs:
                     print(c,file=c_out_fh)
                 c_out_fh.close()
-                verboseprint("\tdone\n")
 
             if (binlistfile!=None):
-                verboseprint("writing bin list file")
                 b_out_fh=open(binlistfile+'__'+c+'.bp',"w")
                 for i in np.nonzero(bin_mask)[0]:
                     print(str(i)+"\t"+chrs[bin_positions[i,0]]+"\t"+str(bin_positions[i,1])+"\t"+str(bin_positions[i,2]),file=b_out_fh)
                 b_out_fh.close()
-                verboseprint("\tdone\n")
+                
+            if output_factors:
+                f_out_fh=open(outfile+'__'+c+'.factors',"w")
+                for i in np.nonzero(bin_mask)[0]:
+                    print(str(i)+"\t"+chrs[bin_positions[i,0]]+"\t"+str(bin_positions[i,1])+"\t"+str(bin_positions[i,2])+"\t"+str(factors[i]),file=f_out_fh)
+                f_out_fh.close()
                 
             verboseprint("")
     else:
@@ -352,6 +366,7 @@ def main():
             if verbose: sys.stdout.flush()
             
             verboseprint("")
+            verboseprint("")
             
             if (chrlistfile!=None):
                 verboseprint("writing chr list file")
@@ -367,6 +382,14 @@ def main():
                 for i in np.nonzero(bin_mask)[0]:
                     print(str(i)+"\t"+chrs[bin_positions[i,0]]+"\t"+str(bin_positions[i,1])+"\t"+str(bin_positions[i,2]),file=b_out_fh)
                 b_out_fh.close()
+                verboseprint("\tdone\n")
+                
+            if output_factors:
+                verboseprint("writing factor list file")
+                f_out_fh=open(outfile+'.factors',"w")
+                for i in np.nonzero(bin_mask)[0]:
+                    print(str(i)+"\t"+chrs[bin_positions[i,0]]+"\t"+str(bin_positions[i,1])+"\t"+str(bin_positions[i,2])+"\t"+str(factors[i]),file=f_out_fh)
+                f_out_fh.close()
                 verboseprint("\tdone\n")
                 
             verboseprint("")
