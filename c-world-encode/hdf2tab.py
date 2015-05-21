@@ -13,7 +13,6 @@ import gzip
 import re
 import os
 import math
-from psutil import virtual_memory
 from collections import defaultdict
 
 def main():
@@ -90,7 +89,11 @@ def main():
     hdf_blocksize=inhdf['interactions'].chunks[0]
     hdf_blockmem=byte_to_megabyte(hdf_blocksize*(ncol*itx_dtype_size))
     
+    verboseprint("hdf_blocksize",hdf_blocksize)
+    verboseprint("hdf_blockmem",hdf_blockmem)
+    
     blocksize,blockmem=get_block_size(itx_dtype_size,hdf_blocksize,hdf_blockmem,blockmem,[nrow,ncol])    
+    
     verboseprint("blocksize",blocksize)
     verboseprint("blockmem",blockmem)
     verboseprint("precision",precision)
@@ -217,7 +220,7 @@ def main():
                 logging.warning("sub-matrix too large! [%s] %d > %d.\n" % (c,n2,(max_dimension*2)))
                 continue
                 
-            if not verbose: print(c," - writing (",n2,"x",n2,") matrix",sep="")
+            verboseprint(c," - writing (",n2,"x",n2,") matrix",sep="")
             m_out_fh=gzip.open(outfile+'__'+c+'.matrix.gz',"wb")
 
             header=[str(i)+'|'+genome+'|'+str(chrs[bin_positions[i,0]])+':'+str(bin_positions[i,1])+'-'+str(bin_positions[i,2]) for i in np.nonzero(bin_mask)[0]]
@@ -314,7 +317,7 @@ def main():
             
         else:
             
-            if not verbose: print("all - writing (",n2,"x",n2,") matrix",sep="")
+            verboseprint("all - writing (",n2,"x",n2,") matrix",sep="")
             m_out_fh=gzip.open(outfile+'.matrix.gz',"wb")
             
             # create header list
@@ -419,18 +422,15 @@ def get_block_size(itx_dtype_size,hdf_blocksize,hdf_blockmem,blockmem,hdf_shape)
     pixel dtype * ncol = mem of single row.
     Adjust block size (num of rows) to acheive blockmem mem usage
     """
-    
-    mem = virtual_memory()
-    system_mem=byte_to_megabyte(mem.total)
-    
     nrow,ncol=hdf_shape
     
     if blockmem==None:
         blocksize=hdf_blocksize
         blockmem=byte_to_megabyte(blocksize*(ncol*itx_dtype_size))
     else:
-        blockmem = system_mem/2 if blockmem > system_mem else blockmem
+        blockmem=blockmem/2
         blockmem -= 256 # reserve 256MB for non-matrix items
+        
         num_block_chunks=math.floor(blockmem/hdf_blockmem)
         if(num_block_chunks > 1):
             blocksize = int(hdf_blocksize*num_block_chunks)
