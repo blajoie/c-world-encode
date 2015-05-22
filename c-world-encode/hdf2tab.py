@@ -20,19 +20,19 @@ def main():
     parser=argparse.ArgumentParser(description='Extract c-data from HDF5 file into TXT (matrix.gz)',formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('-i', '--input', dest='infile', type=str, required=True, help='interaction matrix hdf5 file')
-    parser.add_argument('-info', '--info',dest='info', action='store_true', help='interaction matrix hdf5 file')
-    parser.add_argument('-or','--output_relative', dest='output_relative', action='store_true', help='output file relative to input file path')
     parser.add_argument('-v', '--verbose', dest='verbose',  action='count', help='Increase verbosity (specify multiple times for more)')
     parser.add_argument('-o', '--output', dest='outfile', type=str, help='interaction matrix output file')
-    parser.add_argument('-cis', dest='cis_mode', action='store_true', help='extract cis maps only')
-    parser.add_argument('-chrs', dest='selected_chrs', nargs='+', type=str, default='*', help='subset of chromosomes to extract')
-    parser.add_argument('-maxdim', '--maxdim',dest='max_dimension', type=int, default=300000, help='maximum dimension of allxall matrix - else cis only')
     parser.add_argument('-z', '--zoom', dest='zoom_coords', nargs='+', type=str, help='zoom coordinate (can only select symmetrical subsets)')
     parser.add_argument('-m','--bmem', dest='blockmem', type=int, help='block size for extracting (default=hdf chunk size)')
     parser.add_argument('-p', dest='precision', type=int, default=4, help='output precision (# of digits)')
-    parser.add_argument('-cl', '--chrlist', dest='chrlistfile', type=str, help='output the chromosome list file')
-    parser.add_argument('-bl', '--binlist', dest='binlistfile', type=str, help='output the bin position file')
-    parser.add_argument('-of', '--outputfactors', dest='output_factors', action='store_true', help='output the balancing factor list file')
+    parser.add_argument('--info',dest='info', action='store_true', help='interaction matrix hdf5 file')
+    parser.add_argument('--or', dest='output_relative', action='store_true', help='output file relative to input file path')
+    parser.add_argument('--cis', dest='cis_mode', action='store_true', help='extract cis maps only')
+    parser.add_argument('--chrs', dest='selected_chrs', nargs='+', type=str, default='*', help='subset of chromosomes to extract')
+    parser.add_argument('--maxdim', dest='max_dimension', type=int, default=4000 , help='maximum dimension of allxall matrix - else cis only')
+    parser.add_argument('--chrlist', dest='chrlistfile', type=str, help='output the chromosome list file')
+    parser.add_argument('--binlist', dest='binlistfile', type=str, help='output the bin position file')
+    parser.add_argument('--outputfactors', dest='output_factors', action='store_true', help='output the balancing factor list file')
     
     #parser.print_help()
     #usage = "usage: %prog [options] arg1 arg2"
@@ -135,9 +135,9 @@ def main():
         verboseprint("")
         quit()
     
-    # warn user that (txt) matrix > 300,000 row/col is _excessive_
+    # warn user that (txt) matrix > max_dim row/col is _excessive_ 
     if(n>max_dimension):
-        logging.warning("large matrix! %d > %d.\n\tenforcing cis only mode!\n" % (n,max_dimension))
+        print("large matrix!",n," > ",max_dimension,"\n\tenforcing cis only mode!\n")
         cis_mode=1
     
     if(outfile==None):
