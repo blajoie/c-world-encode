@@ -55,11 +55,12 @@ hdf2tab can read/subset a hdf5 file containing Hi-C data from the encode/dekkerl
 $ git clone git@github.com:blajoie/c-world-encode.git
 $ cd c-world-encode/
 $ python hdf2tab.py
-
-usage: hdf2tab.py [-h] -i INFILE [-info] [-v] [-o OUTFILE] [-cis]
-                  [-chrs SELECTED_CHRS [SELECTED_CHRS ...]]
+usage: hdf2tab.py [-h] -i INFILE [-v] [-o OUTFILE]
                   [-z ZOOM_COORDS [ZOOM_COORDS ...]] [-m BLOCKMEM]
-                  [-p PRECISION] [-cl CHRLISTFILE] [-bl BINLISTFILE]
+                  [-p PRECISION] [--info] [--or] [--cis]
+                  [--chrs SELECTED_CHRS [SELECTED_CHRS ...]]
+                  [--maxdim MAX_DIMENSION] [--outputchrs] [--outputbins]
+                  [--outputfactors] [--version]
 
 Extract c-data from HDF5 file into TXT (matrix.gz)
 
@@ -67,14 +68,10 @@ optional arguments:
   -h, --help            show this help message and exit
   -i INFILE, --input INFILE
                         interaction matrix hdf5 file (default: None)
-  -info                 interaction matrix hdf5 file (default: False)
   -v, --verbose         Increase verbosity (specify multiple times for more)
                         (default: None)
   -o OUTFILE, --output OUTFILE
                         interaction matrix output file (default: None)
-  -cis                  extract cis maps only (default: False)
-  -chrs SELECTED_CHRS [SELECTED_CHRS ...]
-                        subset of chromosomes to extract (default: *)
   -z ZOOM_COORDS [ZOOM_COORDS ...], --zoom ZOOM_COORDS [ZOOM_COORDS ...]
                         zoom coordinate (can only select symmetrical subsets)
                         (default: None)
@@ -82,15 +79,25 @@ optional arguments:
                         block size for extracting (default=hdf chunk size)
                         (default: None)
   -p PRECISION          output precision (# of digits) (default: 4)
-  -cl CHRLISTFILE, --chrlist CHRLISTFILE
-                        chromosome list output file (default: None)
-  -bl BINLISTFILE, --binlist BINLISTFILE
-                        bin position output file (default: None)
-usage: hdf2tab.py [-h] -i INFILE [-info] [-v] [-o OUTFILE] [-cis]
-                  [-chrs SELECTED_CHRS [SELECTED_CHRS ...]]
-                  [-z ZOOM_COORDS [ZOOM_COORDS ...]] [-m BLOCKMEM]
-                  [-p PRECISION] [-cl CHRLISTFILE] [-bl BINLISTFILE]
-hdf2tab.py: error: argument -i/--input is required
+  --info                interaction matrix hdf5 file (default: False)
+  --or                  output file relative to input file path (default:
+                        False)
+  --cis                 extract cis maps only (default: False)
+  --chrs SELECTED_CHRS [SELECTED_CHRS ...]
+                        subset of chromosomes to extract, [+] = all, [-] =
+                        none, zoom selected overrides --chrs (default:
+                        ['default'])
+  --maxdim MAX_DIMENSION
+                        maximum dimension of allxall matrix - else cis only
+                        (default: 4000)
+  --outputchrs          output the chromosome list file, no matrix output
+                        (default: False)
+  --outputbins          output the bin position file, no matrix output
+                        (default: False)
+  --outputfactors       output the balancing factor list file, no matrix
+                        output (default: False)
+  --version             show program's version number and exit
+
 
 ```
 

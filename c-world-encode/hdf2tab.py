@@ -28,12 +28,13 @@ def main():
     parser.add_argument('--info',dest='info', action='store_true', help='interaction matrix hdf5 file')
     parser.add_argument('--or', dest='output_relative', action='store_true', help='output file relative to input file path')
     parser.add_argument('--cis', dest='cis_mode', action='store_true', help='extract cis maps only')
-    parser.add_argument('--chrs', dest='selected_chrs', nargs='+', type=str, default='*', help='subset of chromosomes to extract')
+    parser.add_argument('--chrs', dest='selected_chrs', nargs='+', default=['default'], help='subset of chromosomes to extract, [+] = all, [-] = none, zoom selected overrides --chrs')
     parser.add_argument('--maxdim', dest='max_dimension', type=int, default=4000 , help='maximum dimension of allxall matrix - else cis only')
-    parser.add_argument('--chrlist', dest='chrlistfile', type=str, help='output the chromosome list file')
-    parser.add_argument('--binlist', dest='binlistfile', type=str, help='output the bin position file')
-    parser.add_argument('--outputfactors', dest='output_factors', action='store_true', help='output the balancing factor list file')
-    
+    parser.add_argument('--outputchrs', dest='output_chrs',  action='store_true', help='output the chromosome list file, no matrix output')
+    parser.add_argument('--outputbins', dest='output_bins',  action='store_true', help='output the bin position file, no matrix output')
+    parser.add_argument('--outputfactors', dest='output_factors', action='store_true', help='output the balancing factor list file, no matrix output')
+    parser.add_argument('--version', action='version', version='%(prog)s 1.0')
+
     #parser.print_help()
     #usage = "usage: %prog [options] arg1 arg2"
     
@@ -50,8 +51,8 @@ def main():
     zoom_coords=args.zoom_coords
     blockmem=args.blockmem
     precision=args.precision
-    chrlistfile=args.chrlistfile
-    binlistfile=args.binlistfile
+    output_chrs=args.output_chrs
+    output_bins=args.output_bins
     output_factors=args.output_factors
     
     log_level = logging.WARNING
@@ -104,10 +105,13 @@ def main():
         sys.exit('error: non-symmetrical matrix found!')
     n=nrow=ncol
     
-    # get factors 
+    # default factors to 1s
     factors=np.ones(n,dtype='float64')
+    # get factors 
     if "balance_factors" in inhdf.keys():
         factors=inhdf['balance_factors'][:]
+    else:
+        print("WARNING: balance factors not supplied in H5\n")
         
     # build chr lookup dict
     chr_dict={}
@@ -161,137 +165,112 @@ def main():
             verboseprint("\t",zoom_chr,":",zoom_start,"-",zoom_end,sep="")
             zoom_chrs += [zoom_chr]
             zoom_dict[zoom_chr].append(zoom_coord)
-        verboseprint("\n")
+        verboseprint("")
+    
+    print(selected_chrs)
+    
+    if len(zoom_dict) > 0 and len(selected_chrs) == 1 and selected_chrs[0] == 'default':
+        selected_chrs=['-']
+    if len(zoom_dict) == 0 and len(selected_chrs) == 1 and selected_chrs[0] == 'default':
+        selected_chrs=['+'] 
     
     # process selected chromosomes
-    verboseprint("selected chromosomes")
-    if selected_chrs!="*":        
+    verboseprint("selected chromosomes",selected_chrs)
+    if len(selected_chrs) == 1 and selected_chrs[0] == "+": # add all additional chrs
+        selected_chrs=chrs
+        verboseprint("\tall additional chrs")
+    elif len(selected_chrs) == 1 and selected_chrs[0] == "-": # add no additional chrs
+        selected_chrs=zoom_chrs
+        verboseprint("\tno additional chrs")
+    else: # user select mdoe
         selected_chrs=de_dupe_list(selected_chrs+zoom_chrs)
         for c in selected_chrs:
             if not c in chr_dict:
-                sys.exit('specificed chr '+c+'not found in file!')
+                sys.exit('specificed chr ['+c+'] not found in h5 file!')
         selected_chrs=sorted(selected_chrs,key=lambda x:chr_dict[x]) # ensure selected_chrs are sorted same as the HDF
-        for c in selected_chrs:
-            verboseprint("\t",c,"\n",end="")
-    else:
-        selected_chrs=chrs
-        verboseprint("\t*\n",end="")
+    
+    for c in selected_chrs:
+        verboseprint("\t",c,sep="")
+    
+    # check to ensure at least 1 chr is selected
+    if len(selected_chrs) == 0:
+        sys.exit('no chromosomes selected! must select at least 1 [--chrs,--zoom]')
         
     verboseprint("")
     
+    # init bin mask
     bin_mask=np.zeros(n,dtype=bool)
-    
-    # dump hdf, chr x chr (multiple matrix)
-    
-    if(cis_mode == 1):
-    
-        verboseprint("cis only mode\n")
+    # set bin mask accord to zoom/chrs
+    for c in selected_chrs:
+        c_ind=chr_dict[c]
+        r=chr_bin_range[chr_dict[c]]
         
-        for c in selected_chrs:
+        if c in zoom_dict:
+            zoom_coord_arr=zoom_dict[c]
+            for zoom_coord in zoom_coord_arr:
+                tmp_bin_positions=bin_positions[r[0]:r[1]+1]
+                for i,b in enumerate(tmp_bin_positions):
+                    if b[2] < zoom_coord[1]: continue
+                    if b[1] > zoom_coord[2]: break
+                    overlap=is_overlap([zoom_coord[1],zoom_coord[2]], [b[1],b[2]])
+                    if(overlap > 0):
+                        bin_mask[r[0]+i]=True
+        else:
+            bin_mask[r[0]:r[1]+1]=True
+
+    # dump chr list file
+    if output_chrs:
+        verboseprint("writing chrs ...")
+        out_fh=open(outfile+'.chrs',"w")
+        print("# chrIndex\tchr\tucsc_coord\tchrSize\tchrBinStart\tchrBinEnd\tnBins",file=out_fh)
+        for ci,c in enumerate(selected_chrs):
             c_ind=chr_dict[c]
-            r=chr_bin_range[chr_dict[c]]
-            
-            # reset bin_mask to all zeros
-            bin_mask=np.zeros(n,dtype=bool)
-            if(len(zoom_dict) > 0):
-                if c in zoom_dict:
-                    zoom_coord_arr=zoom_dict[c]
-                    for zoom_coord in zoom_coord_arr:
-                        tmp_bin_positions=bin_positions[r[0]:r[1]+1]
-                        for i,b in enumerate(tmp_bin_positions):
-                            if b[2] < zoom_coord[1]: continue
-                            if b[1] > zoom_coord[2]: break
-                            overlap=is_overlap([zoom_coord[1],zoom_coord[2]], [b[1],b[2]])
-                            if(overlap > 0):
-                                bin_mask[r[0]+i]=True
-                        n2=np.sum(bin_mask[r[0]:r[1]+1])
-                        verboseprint("\t",c," zoom subset ",n2,"x",n2,sep="")
-                else:
-                    continue
-            else:
-                bin_mask[r[0]:r[1]+1]=True
-                n2=np.sum(bin_mask[r[0]:r[1]+1])
-                verboseprint("\t",c," chr subset ",n2,"x",n2,sep="")
-                
-            # interaction matrix output
-            n2=np.sum(bin_mask)
-            
-            if n2 > (max_dimension*2):
-                logging.warning("sub-matrix too large! [%s] %d > %d.\n" % (c,n2,(max_dimension*2)))
-                continue
-                
-            verboseprint(c," - writing (",n2,"x",n2,") matrix",sep="")
-            m_out_fh=gzip.open(outfile+'__'+c+'.matrix.gz',"wb")
-
-            header=[str(i)+'|'+genome+'|'+str(chrs[bin_positions[i,0]])+':'+str(bin_positions[i,1])+'-'+str(bin_positions[i,2]) for i in np.nonzero(bin_mask)[0]]
-            print(str(n2)+"x"+str(n2)+"\t"+"\t".join(header),file=m_out_fh)
-                       
-            k=0
-            tmp_chr_bin_mask=bin_mask[r[0]:r[1]+1]
-            c_end=max(np.nonzero(tmp_chr_bin_mask))[-1]
-            c_start=max(np.nonzero(tmp_chr_bin_mask))[0]
-            tmp_chr_bin_mask=tmp_chr_bin_mask[c_start:c_end+1]
-            c_start += r[0]
-            c_end += r[0]
-                        
-            for i in xrange(c_start,c_end+1,blocksize):
-                b=min(c_end+1-i,blocksize)
-                tmp_bin_mask=tmp_chr_bin_mask[i-c_start:i-c_start+b]
-                    
-                verboseprint("\r",""*20,"\r\tloading block (",i,":",i+b,") ... ",sep="",end="\r")
-                if verbose: sys.stdout.flush()
-                
-                current_block=inhdf['interactions'][i:i+b,:][:,bin_mask][tmp_bin_mask,:]
-                
-                for j in xrange(current_block.shape[0]):
-                    print(header[k]+"\t"+"\t".join(map(format_func,current_block[j,:])),file=m_out_fh)
-                    m_out_fh.flush()
-                    
-                    pc=((float(k)/float((n2)))*100)
-                    verboseprint("\r\t"+str(k)+" / "+str(n2)+" ["+str("{0:.2f}".format(pc))+"%] complete ... ",end="\r")
-                    if verbose: sys.stdout.flush()
-                    
-                    k+=1
-
-            m_out_fh.close()
-            
-            verboseprint('\r',end="")
-            pc=((float(n2)/float((n2)))*100)
-            verboseprint("\t"+str(n2)+" / "+str(n2)+" ["+str("{0:.2f}".format(pc))+"%] complete",end="")
-            if verbose: sys.stdout.flush()
-            
-            verboseprint("")
-            
-            if (chrlistfile!=None):
-                c_out_fh=open(chrlistfile+'__'+c+'.cl',"w")
-                for c in selected_chrs:
-                    print(c,file=c_out_fh)
-                c_out_fh.close()
-
-            if (binlistfile!=None):
-                b_out_fh=open(binlistfile+'__'+c+'.bp',"w")
-                for i in np.nonzero(bin_mask)[0]:
-                    print(str(i)+"\t"+chrs[bin_positions[i,0]]+"\t"+str(bin_positions[i,1])+"\t"+str(bin_positions[i,2]),file=b_out_fh)
-                b_out_fh.close()
-                
-            if output_factors:
-                f_out_fh=open(outfile+'__'+c+'.factors',"w")
-                for i in np.nonzero(bin_mask)[0]:
-                    print(str(i)+"\t"+chrs[bin_positions[i,0]]+"\t"+str(bin_positions[i,1])+"\t"+str(bin_positions[i,2])+"\t"+str(factors[i]),file=f_out_fh)
-                f_out_fh.close()
-                
-            verboseprint("")
-    else:
-        
-        # dump hdf, all x all (one matrix)
-        
-        verboseprint("all mode\n")
-        
-        for c in selected_chrs:
             r=chr_bin_range[chr_dict[c]]
             if c in zoom_dict:
                 zoom_coord_arr=zoom_dict[c]
                 for zoom_coord in zoom_coord_arr:
+                    tmp_bin_mask=np.zeros(n,dtype=bool)
+                    tmp_bin_positions=bin_positions[r[0]:r[1]+1]
+                    for bi,b in enumerate(tmp_bin_positions):
+                        if b[2] < zoom_coord[1]: continue
+                        if b[1] > zoom_coord[2]: break
+                        overlap=is_overlap([zoom_coord[1],zoom_coord[2]], [b[1],b[2]])
+                        if(overlap > 0):
+                            tmp_bin_mask[r[0]+bi]=True
+                    c_end=max(np.nonzero(tmp_bin_mask))[-1]
+                    c_start=max(np.nonzero(tmp_bin_mask))[0]
+                    start,end=bin_positions[c_start][1],bin_positions[c_end][2]
+                    size=(end-start)+1
+                    nbins=(c_end-c_start)+1
+                    print(ci,"\t",c,"\t",c,":",start,"-",end,"\t",size,"\t",c_start,"\t",c_end,"\t",nbins,sep="",file=out_fh)
+            else:
+                start,end=bin_positions[r[0]][1],bin_positions[r[1]][2]
+                size=(end-start)+1
+                nbins=(r[1]-r[0])+1
+                print(ci,"\t",c,"\t",c,":",start,"-",end,"\t",size,"\t",r[0],"\t",r[1],"\t",nbins,sep="",file=out_fh)
+                
+        out_fh.close()
+        verboseprint("") 
+        
+    # dump hdf, chr x chr (multiple matrix)
+    
+    if(cis_mode == 1):
+    
+        verboseprint("cis only mode")
+        
+        verboseprint("")
+        
+        for c in selected_chrs:
+            c_ind=chr_dict[c]
+            r=chr_bin_range[chr_dict[c]]
+            verboseprint(c,sep="")
+            
+            # reset bin_mask to all zeros
+            bin_mask=np.zeros(n,dtype=bool)
+            if c in zoom_dict:
+                zoom_coord_arr=zoom_dict[c]
+                for zoom_coord in zoom_coord_arr:
+                    tmp_bin_mask=np.zeros(n,dtype=bool)
                     tmp_bin_positions=bin_positions[r[0]:r[1]+1]
                     for i,b in enumerate(tmp_bin_positions):
                         if b[2] < zoom_coord[1]: continue
@@ -299,49 +278,55 @@ def main():
                         overlap=is_overlap([zoom_coord[1],zoom_coord[2]], [b[1],b[2]])
                         if(overlap > 0):
                             bin_mask[r[0]+i]=True
-                    n2=np.sum(bin_mask[r[0]:r[1]+1])
-                    verboseprint("\t",c," zoom subset ",n2,"x",n2,sep="")
+                            tmp_bin_mask[r[0]+i]=True
+                    c_end=max(np.nonzero(tmp_bin_mask))[-1]
+                    c_start=max(np.nonzero(tmp_bin_mask))[0]
+                    n2=np.sum(tmp_bin_mask[r[0]:r[1]+1])
+                    verboseprint("\tzoom subset [",c_start,"-",c_end,"] ",n2,"x",n2,sep="")
             else:
                 bin_mask[r[0]:r[1]+1]=True
                 n2=np.sum(bin_mask[r[0]:r[1]+1])
-                verboseprint("\t",c," chr subset ",n2,"x",n2,sep="")
-        
-        verboseprint("")
-        
-        # interaction matrix output
-        n2=np.sum(bin_mask)
-        
-        if n2 > max_dimension:
-            
-            logging.warning("matrix too large! %d > %d.\n" % (n,max_dimension))
-            
-        else:
-            
-            verboseprint("all - writing (",n2,"x",n2,") matrix",sep="")
-            m_out_fh=gzip.open(outfile+'.matrix.gz',"wb")
-            
-            # create header list
-            header=list()
-            for c in selected_chrs:
-                tmp_bin_mask=np.zeros(n,dtype=bool)
-                r=chr_bin_range[chr_dict[c]]
-                tmp_chr_bin_mask=bin_mask[r[0]:r[1]+1]
-                tmp_bin_mask[r[0]:r[1]+1]=tmp_chr_bin_mask
-                tmp_header=[str(i)+'|'+genome+'|'+str(chrs[bin_positions[i,0]])+':'+str(bin_positions[i,1])+'-'+str(bin_positions[i,2]) for i in np.nonzero(tmp_bin_mask)[0]]
-                header += tmp_header
+                verboseprint("\tchr subset [",r[0],"-",r[1]+1,"] ",n2,"x",n2,sep="")
                 
-            print(str(n2)+"x"+str(n2)+"\t"+"\t".join(header),file=m_out_fh)
-          
-            k=0
-            for c in selected_chrs:
-                r=chr_bin_range[chr_dict[c]]
+            # interaction matrix output
+            n2=np.sum(bin_mask)
+            
+            if n2 > (max_dimension*2):
+                logging.warning("sub-matrix too large! [%s] %d > %d.\n" % (c,n2,(max_dimension*2)))
+                continue
+
+            if output_bins:
+                verboseprint("\twriting bins ...")
+                out_fh=open(outfile+'__'+c+'.bins',"w")
+                print("# binIndex\tbinChr\tbinStart\tbinEnd",file=out_fh)
+                for i in np.nonzero(bin_mask)[0]:
+                    print(str(i)+"\t"+chrs[bin_positions[i,0]]+"\t"+str(bin_positions[i,1])+"\t"+str(bin_positions[i,2]),file=out_fh)
+                out_fh.close()
+                
+            if output_factors:
+                verboseprint("\twriting factors ...")
+                out_fh=open(outfile+'__'+c+'.factors',"w")
+                print("# binIndex\tbinChr\tbinStart\tbinEnd\ticeFactor",file=out_fh)
+                for i in np.nonzero(bin_mask)[0]:
+                    print(str(i)+"\t"+chrs[bin_positions[i,0]]+"\t"+str(bin_positions[i,1])+"\t"+str(bin_positions[i,2])+"\t"+str(factors[i]),file=out_fh)
+                out_fh.close()
+            
+            if not any([output_chrs,output_bins,output_factors]):
+               
+                verboseprint("\twriting (",n2,"x",n2,") matrix",sep="")
+                m_out_fh=gzip.open(outfile+'__'+c+'.matrix.gz',"wb")
+
+                header=[str(i)+'|'+genome+'|'+str(chrs[bin_positions[i,0]])+':'+str(bin_positions[i,1])+'-'+str(bin_positions[i,2]) for i in np.nonzero(bin_mask)[0]]
+                print(str(n2)+"x"+str(n2)+"\t"+"\t".join(header),file=m_out_fh)
+                           
+                k=0
                 tmp_chr_bin_mask=bin_mask[r[0]:r[1]+1]
                 c_end=max(np.nonzero(tmp_chr_bin_mask))[-1]
                 c_start=max(np.nonzero(tmp_chr_bin_mask))[0]
                 tmp_chr_bin_mask=tmp_chr_bin_mask[c_start:c_end+1]
                 c_start += r[0]
                 c_end += r[0]
-
+                            
                 for i in xrange(c_start,c_end+1,blocksize):
                     b=min(c_end+1-i,blocksize)
                     tmp_bin_mask=tmp_chr_bin_mask[i-c_start:i-c_start+b]
@@ -360,42 +345,113 @@ def main():
                         if verbose: sys.stdout.flush()
                         
                         k+=1
-                
-            m_out_fh.close()
-            
-            verboseprint('\r',end="")
-            pc=((float(n2)/float((n2)))*100)
-            verboseprint("\t"+str(n2)+" / "+str(n2)+" ["+str("{0:.2f}".format(pc))+"%] complete",end="")
-            if verbose: sys.stdout.flush()
-            
-            verboseprint("")
-            verboseprint("")
-            
-            if (chrlistfile!=None):
-                verboseprint("writing chr list file")
-                c_out_fh=open(chrlistfile+'.cl',"w")
-                for c in selected_chrs:
-                    print(c,file=c_out_fh)
-                c_out_fh.close()
-                verboseprint("\tdone\n")
 
-            if (binlistfile!=None):
-                verboseprint("writing bin list file")
-                b_out_fh=open(binlistfile+'.bp',"w")
+                m_out_fh.close()
+                
+                verboseprint('\r',end="")
+                pc=((float(n2)/float((n2)))*100)
+                verboseprint("\t"+str(n2)+" / "+str(n2)+" ["+str("{0:.2f}".format(pc))+"%] complete",end="")
+                if verbose: sys.stdout.flush()
+                
+                verboseprint("")
+                verboseprint("")
+    else:
+        
+        # dump hdf, all x all (one matrix)
+        
+        verboseprint("all mode")
+        
+        for c in selected_chrs:
+            r=chr_bin_range[chr_dict[c]]
+            if c in zoom_dict:
+                n2=np.sum(bin_mask[r[0]:r[1]+1])
+                verboseprint("\t",c," zoom subset [",r[0],"-",r[1]+1,"] ",n2,"x",n2,sep="")
+            else:
+                n2=np.sum(bin_mask[r[0]:r[1]+1])
+                verboseprint("\t",c," chr subset [",r[0],"-",r[1]+1,"] ",n2,"x",n2,sep="")
+        
+        verboseprint("")
+        
+        # interaction matrix output
+        n2=np.sum(bin_mask)
+        
+        if n2 > max_dimension:
+            
+            logging.warning("matrix too large! %d > %d.\n" % (n,max_dimension))
+            
+        else:
+           
+            if output_bins:
+                verboseprint("writing bins ...")
+                out_fh=open(outfile+'.bins',"w")
+                print("# binIndex\tbinChr\tbinStart\tbinEnd",file=out_fh)
                 for i in np.nonzero(bin_mask)[0]:
-                    print(str(i)+"\t"+chrs[bin_positions[i,0]]+"\t"+str(bin_positions[i,1])+"\t"+str(bin_positions[i,2]),file=b_out_fh)
-                b_out_fh.close()
-                verboseprint("\tdone\n")
+                    print(str(i)+"\t"+chrs[bin_positions[i,0]]+"\t"+str(bin_positions[i,1])+"\t"+str(bin_positions[i,2]),file=out_fh)
+                out_fh.close()
                 
             if output_factors:
-                verboseprint("writing factor list file")
-                f_out_fh=open(outfile+'.factors',"w")
+                verboseprint("writing factors ...")
+                out_fh=open(outfile+'.factors',"w")
+                print("# binIndex\tbinChr\tbinStart\tbinEnd\ticeFactor",file=out_fh)
                 for i in np.nonzero(bin_mask)[0]:
-                    print(str(i)+"\t"+chrs[bin_positions[i,0]]+"\t"+str(bin_positions[i,1])+"\t"+str(bin_positions[i,2])+"\t"+str(factors[i]),file=f_out_fh)
-                f_out_fh.close()
-                verboseprint("\tdone\n")
+                    print(str(i)+"\t"+chrs[bin_positions[i,0]]+"\t"+str(bin_positions[i,1])+"\t"+str(bin_positions[i,2])+"\t"+str(factors[i]),file=out_fh)
+                out_fh.close()
+            
+            if not any([output_chrs,output_bins,output_factors]):
+            
+                verboseprint("all - writing (",n2,"x",n2,") matrix",sep="")
+                m_out_fh=gzip.open(outfile+'.matrix.gz',"wb")
                 
-            verboseprint("")
+                # create header list
+                header=list()
+                for c in selected_chrs:
+                    tmp_bin_mask=np.zeros(n,dtype=bool)
+                    r=chr_bin_range[chr_dict[c]]
+                    tmp_chr_bin_mask=bin_mask[r[0]:r[1]+1]
+                    tmp_bin_mask[r[0]:r[1]+1]=tmp_chr_bin_mask
+                    tmp_header=[str(i)+'|'+genome+'|'+str(chrs[bin_positions[i,0]])+':'+str(bin_positions[i,1])+'-'+str(bin_positions[i,2]) for i in np.nonzero(tmp_bin_mask)[0]]
+                    header += tmp_header
+                    
+                print(str(n2)+"x"+str(n2)+"\t"+"\t".join(header),file=m_out_fh)
+              
+                k=0
+                for c in selected_chrs:
+                    r=chr_bin_range[chr_dict[c]]
+                    tmp_chr_bin_mask=bin_mask[r[0]:r[1]+1]
+                    c_end=max(np.nonzero(tmp_chr_bin_mask))[-1]
+                    c_start=max(np.nonzero(tmp_chr_bin_mask))[0]
+                    tmp_chr_bin_mask=tmp_chr_bin_mask[c_start:c_end+1]
+                    c_start += r[0]
+                    c_end += r[0]
+
+                    for i in xrange(c_start,c_end+1,blocksize):
+                        b=min(c_end+1-i,blocksize)
+                        tmp_bin_mask=tmp_chr_bin_mask[i-c_start:i-c_start+b]
+                            
+                        verboseprint("\r",""*20,"\r\tloading block (",i,":",i+b,") ... ",sep="",end="\r")
+                        if verbose: sys.stdout.flush()
+                        
+                        current_block=inhdf['interactions'][i:i+b,:][:,bin_mask][tmp_bin_mask,:]
+                        
+                        for j in xrange(current_block.shape[0]):
+                            print(header[k]+"\t"+"\t".join(map(format_func,current_block[j,:])),file=m_out_fh)
+                            m_out_fh.flush()
+                            
+                            pc=((float(k)/float((n2)))*100)
+                            verboseprint("\r\t"+str(k)+" / "+str(n2)+" ["+str("{0:.2f}".format(pc))+"%] complete ... ",end="\r")
+                            if verbose: sys.stdout.flush()
+                            
+                            k+=1
+                    
+                m_out_fh.close()
+                
+                verboseprint('\r',end="")
+                pc=((float(n2)/float((n2)))*100)
+                verboseprint("\t"+str(n2)+" / "+str(n2)+" ["+str("{0:.2f}".format(pc))+"%] complete",end="")
+                if verbose: sys.stdout.flush()
+                
+                verboseprint("")
+                verboseprint("")
 
 def split_zoom_coord(z):
     """validate and split zoom coordinate.
