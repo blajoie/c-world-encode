@@ -13,6 +13,7 @@ import gzip
 import re
 import os
 import math
+import uuid
 from collections import defaultdict
 
 def main():
@@ -111,7 +112,7 @@ def main():
     if "balance_factors" in inhdf.keys():
         factors=inhdf['balance_factors'][:]
     else:
-        print("WARNING: balance factors not supplied in H5\n")
+        logging.warning("balance factors not supplied in H5")
         
     # build chr lookup dict
     chr_dict={}
@@ -139,11 +140,6 @@ def main():
         verboseprint("")
         quit()
     
-    # warn user that (txt) matrix > max_dim row/col is _excessive_ 
-    if(n>max_dimension):
-        print("large matrix!",n," > ",max_dimension,"\n\tenforcing cis only mode!\n")
-        cis_mode=1
-    
     if(outfile==None):
         outfile=re.sub(".hdf5", "", infile_name)
     outfile=re.sub(".matrix", "", outfile)
@@ -167,8 +163,6 @@ def main():
             zoom_dict[zoom_chr].append(zoom_coord)
         verboseprint("")
     
-    print(selected_chrs)
-    
     if len(zoom_dict) > 0 and len(selected_chrs) == 1 and selected_chrs[0] == 'default':
         selected_chrs=['-']
     if len(zoom_dict) == 0 and len(selected_chrs) == 1 and selected_chrs[0] == 'default':
@@ -187,8 +181,10 @@ def main():
         for c in selected_chrs:
             if not c in chr_dict:
                 sys.exit('specificed chr ['+c+'] not found in h5 file!')
-        selected_chrs=sorted(selected_chrs,key=lambda x:chr_dict[x]) # ensure selected_chrs are sorted same as the HDF
-    
+   
+    # ensure selected chrs is sorted same as H5
+    selected_chrs=sorted(selected_chrs,key=lambda x:chr_dict[x]) # ensure selected_chrs are sorted same as the HDF
+   
     for c in selected_chrs:
         verboseprint("\t",c,sep="")
     
@@ -218,6 +214,11 @@ def main():
         else:
             bin_mask[r[0]:r[1]+1]=True
 
+    # warn user that (txt) matrix > max_dim row/col is _excessive_ 
+    if(np.sum(bin_mask)>max_dimension):
+        logging.warning("large matrix! %d > %d\n\tenforcing cis only mode!" % (np.sum(bin_mask),max_dimension))
+        cis_mode=1
+        
     # dump chr list file
     if output_chrs:
         verboseprint("writing chrs ...")
@@ -292,7 +293,7 @@ def main():
             n2=np.sum(bin_mask)
             
             if n2 > (max_dimension*2):
-                logging.warning("sub-matrix too large! [%s] %d > %d.\n" % (c,n2,(max_dimension*2)))
+                logging.warning("sub-matrix too large! [%s] %d > %d" % (c,n2,(max_dimension*2)))
                 continue
 
             if output_bins:
@@ -377,7 +378,7 @@ def main():
         
         if n2 > max_dimension:
             
-            logging.warning("matrix too large! %d > %d.\n" % (n,max_dimension))
+            logging.warning("matrix too large! %d > %d" % (n,max_dimension))
             
         else:
            
@@ -453,12 +454,39 @@ def main():
                 verboseprint("")
                 verboseprint("")
 
+def getSmallUniqueString():  
+    tmp_uniq=str(uuid.uuid4())
+    tmp_uniq=tmp_uniq.split('-')[-1]
+    return(tmp_uniq)
+    
+def bin2header(bin,genome,chrs,index=getSmallUniqueString()):
+    #name|assembly|chr:start-end
+    header=str(index)+'|'+genome+'|'+str(chrs[bin[0]])+':'+str(bin[1])+'-'+str(bin[2])
+    return(header)
+
+def deGroupChr(chr_id):
+    return(chr_id.split('-')[0])
+    
+def deGroupHeader(header,extractBy="liteChr",index=getSmallUniqueString()):
+    m=re.search(r'(\S+)\|(\S+)\|(\S+):(\d+)-(\d+)',header)
+    if m==None:
+        sys.exit('error: incorrect input format!')
+                
+    bin_id,genome,chr_id,bin_start,bin_end=m.groups()
+    chr_id=chr_id.split('-')[0]
+
+    header=str(bin_id)+'|'+genome+'|'+str(chr_id)+':'+str(bin_start)+'-'+str(bin_end)
+    
+    return(header)
+    
+    
 def split_zoom_coord(z):
     """validate and split zoom coordinate.
     coordinates must be UCSC formatted.
     e.g. chr1:500-1000
     chr(colon)start(hyphen)end where start <= end
     """
+    z=z.replace(',','')
     zoom_coord=re.search(r'(\S+):(\d+)-(\d+)',z)
     
     if zoom_coord==None:
@@ -512,12 +540,33 @@ def byte_to_megabyte(byte):
     return round(((byte / 1000) / 1000),4) # megabyte
     # return round(((byte / 1024) / 1024),4) # mebibyte
 
+    
+def flip_intervals(a,b):
+    """flip intervals, to ensure a < b
+    """
+    
+    return(b,a)
+    
 def is_overlap(a, b):
     """test to for overlap between two intervals.
     """
     
-    return max(0, min(a[1], b[1]) - max(a[0], b[0]))
-
+    if(a[0] > a[1]):
+        sys.exit('\nerror: incorrectly formated interval! start '+str(a[0])+' > end '+str(a[1])+'!\n\t'+str(a)+' '+str(b)+'\n')
+    if(b[0] > b[1]):
+        sys.exit('\nerror: incorrectly formated interval! start '+str(b[0])+' > end '+str(b[1])+'!\n\t'+str(a)+' '+str(b)+'\n')
+    
+    if a[0] < b[0] and a[1] > b[1]:
+        return((b[1]-b[0])+1)
+    
+    if b[0] < a[0] and b[1] > a[1]:   
+        return((a[1]-a[0])+1)
+        
+    if b[0] < a[0]:
+        a,b=flip_intervals(a,b)
+           
+    return max(0, ( min(a[1],b[1]) - max(a[0],b[0]) ) ) 
+    
 if __name__=="__main__":
     main()
 
