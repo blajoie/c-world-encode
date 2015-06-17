@@ -112,7 +112,7 @@ def main():
     if "balance_factors" in inhdf.keys():
         factors=inhdf['balance_factors'][:]
     else:
-        logging.warning("balance factors not supplied in H5")
+        verboseprint("balance factors not supplied in H5")
         
     # build chr lookup dict
     chr_dict={}
@@ -216,7 +216,7 @@ def main():
 
     # warn user that (txt) matrix > max_dim row/col is _excessive_ 
     if(np.sum(bin_mask)>max_dimension):
-        logging.warning("large matrix! %d > %d\n\tenforcing cis only mode!" % (np.sum(bin_mask),max_dimension))
+        verboseprint("large matrix! %d > %d\n\tenforcing cis only mode!" % (np.sum(bin_mask),max_dimension))
         cis_mode=1
         
     # dump chr list file
@@ -293,7 +293,7 @@ def main():
             n2=np.sum(bin_mask)
             
             if n2 > (max_dimension*2):
-                logging.warning("sub-matrix too large! [%s] %d > %d" % (c,n2,(max_dimension*2)))
+                verboseprint("sub-matrix too large! [%s] %d > %d" % (c,n2,(max_dimension*2)))
                 continue
 
             if output_bins:
@@ -377,8 +377,8 @@ def main():
         n2=np.sum(bin_mask)
         
         if n2 > max_dimension:
-            
-            logging.warning("matrix too large! %d > %d" % (n,max_dimension))
+
+            verboseprint("matrix too large! %d > %d" % (n,max_dimension))
             
         else:
            
