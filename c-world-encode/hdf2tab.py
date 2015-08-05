@@ -24,20 +24,19 @@ def main():
     parser.add_argument('-v', '--verbose', dest='verbose',  action='count', help='Increase verbosity (specify multiple times for more)')
     parser.add_argument('-o', '--output', dest='outfile', type=str, help='interaction matrix output file')
     parser.add_argument('-z', '--zoom', dest='zoom_coords', nargs='+', type=str, help='zoom coordinate (can only select symmetrical subsets)')
+    parser.add_argument('-e', '--elements', dest='elementsfile', type=str, help='elements bed file (bed3+ format)')
     parser.add_argument('-m','--bmem', dest='blockmem', type=int, help='block size for extracting (default=hdf chunk size)')
     parser.add_argument('-p', dest='precision', type=int, default=4, help='output precision (# of digits)')
     parser.add_argument('--info',dest='info', action='store_true', help='interaction matrix hdf5 file')
     parser.add_argument('--or', dest='output_relative', action='store_true', help='output file relative to input file path')
     parser.add_argument('--cis', dest='cis_mode', action='store_true', help='extract cis maps only')
     parser.add_argument('--chrs', dest='selected_chrs', nargs='+', default=['default'], help='subset of chromosomes to extract, [+] = all, [-] = none, zoom selected overrides --chrs')
+    parser.add_argument('--elementexten', dest='elementexten', type=int, default=0, help='bp extension for all elements, +/- bp to start/end of each element')
     parser.add_argument('--maxdim', dest='max_dimension', type=int, default=4000 , help='maximum dimension of allxall matrix - else cis only')
     parser.add_argument('--outputchrs', dest='output_chrs',  action='store_true', help='output the chromosome list file, no matrix output')
     parser.add_argument('--outputbins', dest='output_bins',  action='store_true', help='output the bin position file, no matrix output')
     parser.add_argument('--outputfactors', dest='output_factors', action='store_true', help='output the balancing factor list file, no matrix output')
     parser.add_argument('--version', action='version', version='%(prog)s 1.0')
-
-    #parser.print_help()
-    #usage = "usage: %prog [options] arg1 arg2"
     
     args=parser.parse_args()
 
@@ -48,8 +47,10 @@ def main():
     outfile=args.outfile
     cis_mode=args.cis_mode
     selected_chrs=args.selected_chrs
+    elementexten=args.elementexten
     max_dimension=args.max_dimension
     zoom_coords=args.zoom_coords
+    elementsfile=args.elementsfile
     blockmem=args.blockmem
     precision=args.precision
     output_chrs=args.output_chrs
@@ -113,6 +114,7 @@ def main():
         factors=inhdf['balance_factors'][:]
     else:
         verboseprint("balance factors not supplied in H5")
+        verboseprint("")
         
     # build chr lookup dict
     chr_dict={}
@@ -145,11 +147,41 @@ def main():
     outfile=re.sub(".matrix", "", outfile)
     outfile=re.sub(".gz", "", outfile)
 
+    subset_chrs=list()
+    subset_dict=defaultdict(list)
+    
+    # process elements file
+    num_elements=0
+    if elementsfile != None:
+        verboseprint("element bed file [",elementexten,"]",sep="")
+        e_fh=open(elementsfile,"r") 
+        
+        for i,li in enumerate(e_fh):
+            li=li.rstrip("\n")
+            if li.startswith("#") or li.startswith("track"):
+                continue
+            
+            lineList=li.split("\t")
+            lineList[1]=max(1,(int(lineList[1])-elementexten))
+            lineList[2]=(int(lineList[1])+elementexten)
+            z=lineList[0]+':'+str(lineList[1])+'-'+str(lineList[2])
+            
+            zoom_coord=split_zoom_coord(z)
+            
+            if zoom_coord==None:
+                verboseprint("\t",z," *invalid*",sep="")
+                continue
+                
+            zoom_chr,zoom_start,zoom_end=zoom_coord
+            subset_chrs += [zoom_chr]
+            subset_dict[zoom_chr].append(zoom_coord)
+            num_elements += 1
+        verboseprint("\t",num_elements," elements",sep="")
+        verboseprint("")
+    
     # process zoom coordinates
-    verboseprint("zoom coordinates")
-    zoom_chrs=list()
-    zoom_dict=defaultdict(list)
     if(zoom_coords!=None):
+        verboseprint("zoom coordinates")
         for z in zoom_coords:
             zoom_coord=split_zoom_coord(z)
             
@@ -159,13 +191,13 @@ def main():
                 
             zoom_chr,zoom_start,zoom_end=zoom_coord
             verboseprint("\t",zoom_chr,":",zoom_start,"-",zoom_end,sep="")
-            zoom_chrs += [zoom_chr]
-            zoom_dict[zoom_chr].append(zoom_coord)
+            subset_chrs += [zoom_chr]
+            subset_dict[zoom_chr].append(zoom_coord)
         verboseprint("")
     
-    if len(zoom_dict) > 0 and len(selected_chrs) == 1 and selected_chrs[0] == 'default':
+    if len(subset_dict) > 0 and len(selected_chrs) == 1 and selected_chrs[0] == 'default':
         selected_chrs=['-']
-    if len(zoom_dict) == 0 and len(selected_chrs) == 1 and selected_chrs[0] == 'default':
+    if len(subset_dict) == 0 and len(selected_chrs) == 1 and selected_chrs[0] == 'default':
         selected_chrs=['+'] 
     
     # process selected chromosomes
@@ -174,16 +206,20 @@ def main():
         selected_chrs=chrs
         verboseprint("\tall additional chrs")
     elif len(selected_chrs) == 1 and selected_chrs[0] == "-": # add no additional chrs
-        selected_chrs=zoom_chrs
+        selected_chrs=de_dupe_list(subset_chrs)
         verboseprint("\tno additional chrs")
     else: # user select mdoe
-        selected_chrs=de_dupe_list(selected_chrs+zoom_chrs)
-        for c in selected_chrs:
-            if not c in chr_dict:
-                sys.exit('specificed chr ['+c+'] not found in h5 file!')
-   
+        selected_chrs=de_dupe_list(selected_chrs+subset_chrs)
+    
+    filtered_selected_chrs=[]
+    for i,c in enumerate(selected_chrs):
+        if not c in chr_dict:
+           verboseprint('\tWARNING: specificed chr ['+c+'] not found in h5 file!')
+        else:
+            filtered_selected_chrs.append(c)
+
     # ensure selected chrs is sorted same as H5
-    selected_chrs=sorted(selected_chrs,key=lambda x:chr_dict[x]) # ensure selected_chrs are sorted same as the HDF
+    selected_chrs=sorted(filtered_selected_chrs,key=lambda x:chr_dict[x]) # ensure selected_chrs are sorted same as the HDF
    
     for c in selected_chrs:
         verboseprint("\t",c,sep="")
@@ -197,12 +233,14 @@ def main():
     # init bin mask
     bin_mask=np.zeros(n,dtype=bool)
     # set bin mask accord to zoom/chrs
+    verboseprint("building bin mask ... ")
     for c in selected_chrs:
+        verboseprint("\t",c,sep="")
         c_ind=chr_dict[c]
         r=chr_bin_range[chr_dict[c]]
         
-        if c in zoom_dict:
-            zoom_coord_arr=zoom_dict[c]
+        if c in subset_dict:
+            zoom_coord_arr=subset_dict[c]
             for zoom_coord in zoom_coord_arr:
                 tmp_bin_positions=bin_positions[r[0]:r[1]+1]
                 for i,b in enumerate(tmp_bin_positions):
@@ -213,7 +251,9 @@ def main():
                         bin_mask[r[0]+i]=True
         else:
             bin_mask[r[0]:r[1]+1]=True
-
+    verboseprint("\tdone")
+    verboseprint("")
+    
     # warn user that (txt) matrix > max_dim row/col is _excessive_ 
     if(np.sum(bin_mask)>max_dimension):
         verboseprint("large matrix! %d > %d\n\tenforcing cis only mode!" % (np.sum(bin_mask),max_dimension))
@@ -227,8 +267,8 @@ def main():
         for ci,c in enumerate(selected_chrs):
             c_ind=chr_dict[c]
             r=chr_bin_range[chr_dict[c]]
-            if c in zoom_dict:
-                zoom_coord_arr=zoom_dict[c]
+            if c in subset_dict:
+                zoom_coord_arr=subset_dict[c]
                 for zoom_coord in zoom_coord_arr:
                     tmp_bin_mask=np.zeros(n,dtype=bool)
                     tmp_bin_positions=bin_positions[r[0]:r[1]+1]
@@ -268,8 +308,8 @@ def main():
             
             # reset bin_mask to all zeros
             bin_mask=np.zeros(n,dtype=bool)
-            if c in zoom_dict:
-                zoom_coord_arr=zoom_dict[c]
+            if c in subset_dict:
+                zoom_coord_arr=subset_dict[c]
                 for zoom_coord in zoom_coord_arr:
                     tmp_bin_mask=np.zeros(n,dtype=bool)
                     tmp_bin_positions=bin_positions[r[0]:r[1]+1]
@@ -283,7 +323,7 @@ def main():
                     c_end=max(np.nonzero(tmp_bin_mask))[-1]
                     c_start=max(np.nonzero(tmp_bin_mask))[0]
                     n2=np.sum(tmp_bin_mask[r[0]:r[1]+1])
-                    verboseprint("\tzoom subset [",c_start,"-",c_end,"] ",n2,"x",n2,sep="")
+                    #verboseprint("\tzoom subset [",c_start,"-",c_end,"] ",n2,"x",n2,sep="")
             else:
                 bin_mask[r[0]:r[1]+1]=True
                 n2=np.sum(bin_mask[r[0]:r[1]+1])
@@ -364,7 +404,7 @@ def main():
         
         for c in selected_chrs:
             r=chr_bin_range[chr_dict[c]]
-            if c in zoom_dict:
+            if c in subset_dict:
                 n2=np.sum(bin_mask[r[0]:r[1]+1])
                 verboseprint("\t",c," zoom subset [",r[0],"-",r[1]+1,"] ",n2,"x",n2,sep="")
             else:
@@ -478,7 +518,6 @@ def deGroupHeader(header,extractBy="liteChr",index=getSmallUniqueString()):
     header=str(bin_id)+'|'+genome+'|'+str(chr_id)+':'+str(bin_start)+'-'+str(bin_end)
     
     return(header)
-    
     
 def split_zoom_coord(z):
     """validate and split zoom coordinate.

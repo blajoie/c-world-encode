@@ -15,6 +15,14 @@ c-world-encode/
 	hdf2tab.py - Extract c-data from HDF5 file into TXT (matrix.gz)
 ```
 
+## Installation
+
+The main requirements are numpy and h5py.
+
+You can install the dependencies with
+
+for req in $(cat requirements.txt); do pip install $req; done
+
 ## Full Documentation
 
 See the [c-world-encode Wiki](https://github.com/blajoie/c-world-encode/wiki) for full documentation of encode/dekkerlab Hi-C HDF5 file format.
@@ -52,15 +60,15 @@ hdf2tab can read/subset a hdf5 file containing Hi-C data from the encode/dekkerl
 ## Usage
 
 ```
-$ git clone git@github.com:blajoie/c-world-encode.git
-$ cd c-world-encode/
-$ python hdf2tab.py
+
+$ python c-world-encode/hdf2tab.py  --help
+
 usage: hdf2tab.py [-h] -i INFILE [-v] [-o OUTFILE]
-                  [-z ZOOM_COORDS [ZOOM_COORDS ...]] [-m BLOCKMEM]
-                  [-p PRECISION] [--info] [--or] [--cis]
+                  [-z ZOOM_COORDS [ZOOM_COORDS ...]] [-e ELEMENTSFILE]
+                  [-m BLOCKMEM] [-p PRECISION] [--info] [--or] [--cis]
                   [--chrs SELECTED_CHRS [SELECTED_CHRS ...]]
-                  [--maxdim MAX_DIMENSION] [--outputchrs] [--outputbins]
-                  [--outputfactors] [--version]
+                  [--elementexten ELEMENTEXTEN] [--maxdim MAX_DIMENSION]
+                  [--outputchrs] [--outputbins] [--outputfactors] [--version]
 
 Extract c-data from HDF5 file into TXT (matrix.gz)
 
@@ -75,6 +83,8 @@ optional arguments:
   -z ZOOM_COORDS [ZOOM_COORDS ...], --zoom ZOOM_COORDS [ZOOM_COORDS ...]
                         zoom coordinate (can only select symmetrical subsets)
                         (default: None)
+  -e ELEMENTSFILE, --elements ELEMENTSFILE
+                        elements bed file (bed3+ format) (default: None)
   -m BLOCKMEM, --bmem BLOCKMEM
                         block size for extracting (default=hdf chunk size)
                         (default: None)
@@ -87,6 +97,9 @@ optional arguments:
                         subset of chromosomes to extract, [+] = all, [-] =
                         none, zoom selected overrides --chrs (default:
                         ['default'])
+  --elementexten ELEMENTEXTEN
+                        bp extension for all elements, +/- bp to start/end of
+                        each element (default: 0)
   --maxdim MAX_DIMENSION
                         maximum dimension of allxall matrix - else cis only
                         (default: 4000)
@@ -98,8 +111,35 @@ optional arguments:
                         output (default: False)
   --version             show program's version number and exit
 
+## Usage Examples
 
+(dump info of HDF5 file)
+$ python c-world-encode/hdf2tab.py -i test/C-10000000/iced/NPC__mm9__genome__C-10000000-iced.hdf5 --info
+
+(dump balance factors from HDF5 file)
+$ python c-world-encode/hdf2tab.py -i test/C-10000000/iced/NPC__mm9__genome__C-10000000-iced.hdf5 --outputfactors
+	-> NPC__mm9__genome__C-10000000-iced.factors
+
+(dump genome wide tsc matrix
+$ python c-world-encode/hdf2tab.py -i test/C-10000000/iced/NPC__mm9__genome__C-10000000-iced.hdf5 -v
+
+(dump all cis maps)
+$ python c-world-encode/hdf2tab.py -i test/C-10000000/iced/NPC__mm9__genome__C-10000000-iced.hdf5 --cis -v
+
+(dump cis maps for chr1, chr2 and chr3 from the HDF5 file)
+$ python c-world-encode/hdf2tab.py -i test/C-10000000/iced/NPC__mm9__genome__C-10000000-iced.hdf5 --cis --chrs chr1 chr2 chr3 -v 
+	-> NPC__mm9__genome__C-10000000-iced__chr1.matrix.gz
+	-> NPC__mm9__genome__C-10000000-iced__chr2.matrix.gz
+	-> NPC__mm9__genome__C-10000000-iced__chr3.matrix.gz
+	
+(subset HDF by bed file)	
+$ python c-world-encode/hdf2tab.py -i test/C-10000000/iced/NPC__mm9__genome__C-10000000-iced.hdf5 -e test/chromosome-bands-qB.bed -v
+	-> NPC__mm9__genome__C-10000000-iced.matrix.gz
+	
+	
 ```
+
+## Change Log
 
 ## Bugs and Feedback
 
